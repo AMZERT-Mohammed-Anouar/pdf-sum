@@ -7,6 +7,14 @@
 </head>
 <body>
     <h1>PDF Search Application</h1>
+    
+    <!-- Form to upload a PDF file -->
+    <form id="uploadForm" enctype="multipart/form-data">
+        <label for="pdf_file">Upload PDF File:</label>
+        <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
+        <button type="submit">Upload</button>
+    </form>
+
     <form id="searchForm">
         <label for="query">Enter your search query:</label>
         <input type="text" id="query" name="query" required>
@@ -22,35 +30,50 @@
     </div>
 
     <script>
-        document.getElementById("searchForm").addEventListener("submit", async (e) => {
-            e.preventDefault();
-            const query = document.getElementById("query").value;
-            
-            const response = await fetch("/search", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ query })
-            });
-            
-            const data = await response.json();
-            
-            // Display extracted PDF text
-            document.getElementById("pdf_text").innerText = data.pdf_text;
-    
-            // Check if the search result is defined and process accordingly
-            if (data.search_result === "Query found in PDF text.") {
-                const pagesFound = data.pages_found ? data.pages_found.join(", ") : "None";
-                const linesFound = data.lines_found ? JSON.stringify(data.lines_found) : "None";
-                document.getElementById("extracted_info").innerText = 
-                    `Found ${data.occurrences} time(s) in pages: ${pagesFound}. Lines found: ${linesFound}`;
-            } else {
-                document.getElementById("extracted_info").innerText = data.search_result;
-            }
+// This code snippet should be added to your client.html
+document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fileInput = document.getElementById("pdf_file");
+    const formData = new FormData();
+    formData.append("pdf_file", fileInput.files[0]);
+
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData,
+    });
+
+    const data = await response.json();
+    console.log(data.message);  // Log the upload message
+});
+
+
+    document.getElementById("searchForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const query = document.getElementById("query").value;
+        
+        const response = await fetch("/search", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ query })
         });
+        
+        const data = await response.json();
+        
+        // Display extracted PDF text
+        document.getElementById("pdf_text").innerText = data.pdf_text;
+        
+        // Check if the search result is defined and process accordingly
+        if (data.search_result === "Query found in PDF text.") {
+            const pagesWithLines = data.pages_with_lines ? data.pages_with_lines : "None";
+            document.getElementById("extracted_info").innerText = 
+                `Found ${data.occurrences} time(s) in pages: ${pagesWithLines}`;
+        } else {
+            document.getElementById("extracted_info").innerText = data.search_result;
+        }
+    });
+
     </script>
-    
-    
 </body>
 </html>
