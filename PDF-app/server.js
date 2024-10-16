@@ -43,20 +43,26 @@ app.post("/upload", upload.single("pdf_file"), (req, res) => {
 });
 
 app.post("/search", async (req, res) => {
-    const { query } = req.body;
-    console.log(`Received query from client: ${query}`);
+    const { query, language } = req.body;  // Extract both query and language
+    console.log(`Received query from client: ${query} in language: ${language}`);  // Debug: log the query and language
+
     try {
-        const response = await axios.post("http://localhost:5000/search", { query });
-        console.log("Response from Flask backend:", response.data);
-        res.json(response.data);
+        // Forward the query and language to the Flask backend
+        const response = await axios.post("http://localhost:5000/search", { query, language });  // Send language too
+        console.log("Response from Flask backend:", response.data);  // Debug: log the response
+        res.json(response.data);  // Send the response back to the client
     } catch (error) {
-        console.error("Error communicating with the Flask backend:", error.message);
+        console.error("Error communicating with the Flask backend:", error.message);  // Log the error message
+
+        // Log detailed error response if it exists
         if (error.response) {
-            console.error("Flask response data:", error.response.data);
+            console.error("Flask response data:", error.response.data);  // Log response data for debugging
         }
+
         res.status(500).json({ error: "Error communicating with the Flask backend." });
     }
 });
+
 
 app.listen(3001, () => {
     console.log("Server running on http://localhost:3001");

@@ -15,9 +15,21 @@
         <button type="submit">Upload</button>
     </form>
 
+    <!-- Search Form with Checkbox for Language Selection -->
     <form id="searchForm">
         <label for="query">Enter your search query:</label>
         <input type="text" id="query" name="query" required>
+
+        <h3>Select Language:</h3>
+        <label>
+            <input type="radio" id="english" name="language" value="english" checked>
+            English
+        </label>
+        <label>
+            <input type="radio" id="french" name="language" value="french">
+            French
+        </label>
+
         <button type="submit">Search</button>
     </form>
 
@@ -30,50 +42,52 @@
     </div>
 
     <script>
-// This code snippet should be added to your client.html
-document.getElementById("uploadForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fileInput = document.getElementById("pdf_file");
-    const formData = new FormData();
-    formData.append("pdf_file", fileInput.files[0]);
+        // Upload Form Submission
+        document.getElementById("uploadForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const fileInput = document.getElementById("pdf_file");
+            const formData = new FormData();
+            formData.append("pdf_file", fileInput.files[0]);
 
-    const response = await fetch("/upload", {
-        method: "POST",
-        body: formData,
-    });
+            const response = await fetch("/upload", {
+                method: "POST",
+                body: formData,
+            });
 
-    const data = await response.json();
-    console.log(data.message);  // Log the upload message
-});
-
-
-    document.getElementById("searchForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const query = document.getElementById("query").value;
-        
-        const response = await fetch("/search", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({ query })
+            const data = await response.json();
+            console.log(data.message);  // Log the upload message
         });
-        
-        const data = await response.json();
-        
-        // Display extracted PDF text
-        document.getElementById("pdf_text").innerText = data.pdf_text;
-        
-        // Check if the search result is defined and process accordingly
-        if (data.search_result === "Query found in PDF text.") {
-            const pagesWithLines = data.pages_with_lines ? data.pages_with_lines : "None";
-            document.getElementById("extracted_info").innerText = 
-                `Found ${data.occurrences} time(s) in pages: ${pagesWithLines}`;
-        } else {
-            document.getElementById("extracted_info").innerText = data.search_result;
-        }
-    });
 
+        // Search Form Submission
+        document.getElementById("searchForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const query = document.getElementById("query").value;
+            const language = document.querySelector('input[name="language"]:checked').value;  // Get selected language
+            
+            console.log(`Selected language: ${language}`);  // Debug: log the selected language
+
+            const response = await fetch("/search", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ query, language })  // Send query and language to the server
+            });
+            
+            const data = await response.json();
+            
+            // Display extracted PDF text
+            document.getElementById("pdf_text").innerText = data.pdf_text;
+            
+            // Display search results
+            if (data.search_result === "Query found in PDF text.") {
+                const pagesWithLines = data.pages_with_lines ? data.pages_with_lines : "None";
+                document.getElementById("extracted_info").innerText = 
+                    `Found ${data.occurrences} time(s) in pages: ${pagesWithLines}`;
+            } else {
+                document.getElementById("extracted_info").innerText = data.search_result;
+            }
+        });
     </script>
 </body>
 </html>
