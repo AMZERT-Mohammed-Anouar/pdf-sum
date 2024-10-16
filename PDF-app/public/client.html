@@ -4,41 +4,144 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Search Application</title>
+    <style>
+        /* General Styling */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f4f8;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+
+        /* Container */
+        .container {
+            width: 100%;
+            max-width: 600px;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        h2 {
+            font-size: 20px;
+            color: #555;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin: 15px 0 5px;
+        }
+
+        /* Input Fields */
+        input[type="file"],
+        input[type="text"] {
+            width: calc(100% - 22px);
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="file"]:hover,
+        input[type="text"]:hover {
+            border-color: #8bcdcd;
+        }
+
+        /* Radio Buttons */
+        input[type="radio"] {
+            margin-right: 5px;
+        }
+
+        h3 {
+            margin: 15px 0 5px;
+            font-size: 18px;
+            color: #666;
+        }
+
+        /* Buttons */
+        button {
+            background-color: #4CAF50;
+            color: #fff;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        /* Results Styling */
+        #results {
+            margin-top: 20px;
+            text-align: left;
+        }
+
+        p {
+            background-color: #f9f9f9;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            color: #555;
+            font-size: 15px;
+        }
+    </style>
 </head>
 <body>
-    <h1>PDF Search Application</h1>
-    
-    <!-- Form to upload a PDF file -->
-    <form id="uploadForm" enctype="multipart/form-data">
-        <label for="pdf_file">Upload PDF File:</label>
-        <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
-        <button type="submit">Upload</button>
-    </form>
+    <div class="container">
+        <h1>PDF Search Application</h1>
+        
+        <!-- Form to upload a PDF file -->
+        <form id="uploadForm" enctype="multipart/form-data">
+            <label for="pdf_file">Upload PDF File:</label>
+            <input type="file" id="pdf_file" name="pdf_file" accept=".pdf" required>
+            <button type="submit">Upload</button>
+        </form>
 
-    <!-- Search Form with Checkbox for Language Selection -->
-    <form id="searchForm">
-        <label for="query">Enter your search query:</label>
-        <input type="text" id="query" name="query" required>
+        <!-- Search Form with Checkbox for Language Selection -->
+        <form id="searchForm">
+            <label for="query">Enter your search query:</label>
+            <input type="text" id="query" name="query" required>
 
-        <h3>Select Language:</h3>
-        <label>
-            <input type="radio" id="english" name="language" value="english" checked>
-            English
-        </label>
-        <label>
-            <input type="radio" id="french" name="language" value="french">
-            French
-        </label>
+            <h3>Select Language:</h3>
+            <label>
+                <input type="radio" id="english" name="language" value="english" checked>
+                English
+            </label>
+            <label>
+                <input type="radio" id="french" name="language" value="french">
+                French
+            </label>
 
-        <button type="submit">Search</button>
-    </form>
+            <button type="submit">Search</button>
+        </form>
 
-    <div id="results">
-        <h2>Summary:</h2>
-        <p id="pdf_summary"></p> <!-- Updated ID for summary -->
+        <div id="results">
+            <h2>Summary:</h2>
+            <p id="pdf_summary"></p> <!-- Updated ID for summary -->
 
-        <h2>Extracted Information:</h2>
-        <p id="extracted_info"></p>
+            <h2>Extracted Information:</h2>
+            <p id="extracted_info"></p>
+        </div>
     </div>
 
     <script>
@@ -90,4 +193,4 @@
         });
     </script>
 </body>
-</html>
+</html> 

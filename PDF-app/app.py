@@ -68,7 +68,6 @@ def searchInPDF_english(pdf_path, key):
 
     return occurrences, pages_with_lines
 
-# Updated French search function - Improved to detect occurrences more accurately
 def searchInPDF_french(pdf_path, key):
     occurrences = 0
     pages_with_lines = {}
@@ -81,39 +80,33 @@ def searchInPDF_french(pdf_path, key):
         page = doc[pno]
         content = page.get_text("text")
         
-        # Split content by lines
+        # Split the content into lines
         lines = content.splitlines()
         
-        # Check for occurrences line by line and store matches
-        for line_num, line in enumerate(lines, start=1):
-            # Find all matches in the current line
-            matches = list(phrase_pattern.finditer(line))
-            match_count = len(matches)
-            occurrences += match_count
-
-            if match_count > 0:
-                # Store line number in dictionary
-                if pno + 1 not in pages_with_lines:
-                    pages_with_lines[pno + 1] = []
-                pages_with_lines[pno + 1].append(line_num)
-
-        # Full page check - to handle multi-line matches
+        # Combine lines into a single page content
         page_content = ' '.join(lines)
-        matches_full_page = list(phrase_pattern.finditer(page_content))
-        if len(matches_full_page) > len(matches):  # Capture cases missed in the line-by-line search
-            for match in matches_full_page:
-                match_start = match.start()
-                char_count = 0
-                for line_num, line in enumerate(lines, start=1):
-                    char_count += len(line) + 1  # Include line breaks
-                    if char_count >= match_start:
-                        if pno + 1 not in pages_with_lines:
-                            pages_with_lines[pno + 1] = []
-                        if line_num not in pages_with_lines[pno + 1]:
-                            pages_with_lines[pno + 1].append(line_num)
-                        break
+        
+        # Find all matches for the key in the full page content
+        matches = list(phrase_pattern.finditer(page_content))
+        
+        for match in matches:
+            occurrences += 1  # Count each match occurrence
+            
+            # Determine the exact line where this match starts
+            match_start = match.start()
+            char_count = 0
+            for line_num, line in enumerate(lines, start=1):
+                char_count += len(line) + 1  # Include the newline character
+                if char_count >= match_start:
+                    # Store this line in pages_with_lines if it's not already there
+                    if pno + 1 not in pages_with_lines:
+                        pages_with_lines[pno + 1] = []
+                    if line_num not in pages_with_lines[pno + 1]:
+                        pages_with_lines[pno + 1].append(line_num)
+                    break
 
     return occurrences, pages_with_lines
+
 
 @app.route("/search", methods=["POST"])
 def search():
