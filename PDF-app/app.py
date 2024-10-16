@@ -2,11 +2,15 @@ from flask import Flask, request, jsonify
 import fitz  # PyMuPDF
 import os
 import re
+from transformers import pipeline
 
 app = Flask(__name__)
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Initialize the summarization model
+summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -44,10 +48,9 @@ def convert_pdf_to_text(pdf_path):
         raise
     return text
 
-# English search function
 def searchInPDF_english(pdf_path, key):
     occurrences = 0
-    pages_with_lines = {} 
+    pages_with_lines = {}
 
     doc = fitz.open(pdf_path)
     for pno in range(len(doc)):
@@ -120,7 +123,7 @@ def search():
         
         data = request.json
         query = data.get("query")
-        language = data.get("language", "english").lower()  # Default to English if no language is specified
+        language = data.get("language", "english").lower()
         print(f"Received query: {query} in language: {language}")
 
         pdf_text = convert_pdf_to_text(pdf_path)
@@ -136,7 +139,7 @@ def search():
                                                for page, lines in pages_with_lines.items()])
 
         response_data = {
-            "pdf_text": pdf_text,
+            "summary": summarize_text(pdf_text),  # Add summary to the response
             "occurrences": occurrences,
             "pages_with_lines": formatted_pages_with_lines,
             "search_result": "Query found in PDF text." if occurrences > 0 else "Query not found in PDF text."
@@ -151,5 +154,16 @@ def search():
         print(f"Error occurred: {e}")
         return jsonify({"error": str(e)}), 500
 
+# Function to summarize the extracted PDF text
+def summarize_text(text):
+    # Handle cases where text might be too long for summarization
+    max_length = 1024  # Maximum tokens for the model
+    if len(text) > max_length:
+        text = text[:max_length]  # Truncate to fit model input
+
+    summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
+    return summary[0]['summary_text']  # Return the summary text
+
 if __name__ == "__main__":
     app.run(port=5000)
+

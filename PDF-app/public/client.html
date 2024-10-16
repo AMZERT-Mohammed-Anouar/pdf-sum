@@ -34,8 +34,8 @@
     </form>
 
     <div id="results">
-        <h2>Extracted Text:</h2>
-        <p id="pdf_text"></p>
+        <h2>Summary:</h2>
+        <p id="pdf_summary"></p> <!-- Updated ID for summary -->
 
         <h2>Extracted Information:</h2>
         <p id="extracted_info"></p>
@@ -76,8 +76,8 @@
             
             const data = await response.json();
             
-            // Display extracted PDF text
-            document.getElementById("pdf_text").innerText = data.pdf_text;
+            // Display the summary of the PDF content
+            document.getElementById("pdf_summary").innerText = data.summary; // Update this line to show the summary
             
             // Display search results
             if (data.search_result === "Query found in PDF text.") {
