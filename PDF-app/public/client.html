@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Search Application</title>
+    <title>PDF Search and Summarize Application</title>
     <style>
         /* General Styling */
         body {
@@ -62,17 +62,6 @@
             border-color: #8bcdcd;
         }
 
-        /* Radio Buttons */
-        input[type="radio"] {
-            margin-right: 5px;
-        }
-
-        h3 {
-            margin: 15px 0 5px;
-            font-size: 18px;
-            color: #666;
-        }
-
         /* Buttons */
         button {
             background-color: #4CAF50;
@@ -125,7 +114,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>PDF Search Application</h1>
+        <h1>PDF Search and Summarize Application</h1>
         
         <!-- Form to upload a PDF file -->
         <form id="uploadForm" enctype="multipart/form-data">
@@ -134,21 +123,13 @@
             <button type="submit">Upload</button>
         </form>
 
-        <!-- Search Form with Checkbox for Language Selection -->
+        <!-- Summarize Button -->
+        <button id="summarizeBtn">Summarize PDF</button>
+
+        <!-- Search Form -->
         <form id="searchForm">
             <label for="query">Enter your search query:</label>
             <input type="text" id="query" name="query" required>
-
-            <h3>Select Language:</h3>
-            <label>
-                <input type="radio" id="english" name="language" value="english" checked>
-                English
-            </label>
-            <label>
-                <input type="radio" id="french" name="language" value="french">
-                French
-            </label>
-
             <button type="submit">Search</button>
         </form>
 
@@ -170,49 +151,86 @@
         // Upload Form Submission
         document.getElementById("uploadForm").addEventListener("submit", async (e) => {
             e.preventDefault();
-            spinner.style.display = "block"; // Show spinner
+            spinner.style.display = "block";
             const fileInput = document.getElementById("pdf_file");
             const formData = new FormData();
             formData.append("pdf_file", fileInput.files[0]);
 
-            const response = await fetch("/upload", {
-                method: "POST",
-                body: formData,
-            });
+            try {
+                const response = await fetch("/upload", {
+                    method: "POST",
+                    body: formData,
+                });
 
-            const data = await response.json();
-            console.log(data.message);
-            spinner.style.display = "none"; // Hide spinner when complete
+                const data = await response.json();
+                console.log(data.message);
+                alert(data.message); // Display a message upon successful upload
+            } catch (error) {
+                console.error("Error during upload:", error);
+                alert("An error occurred while uploading the file.");
+            } finally {
+                spinner.style.display = "none";
+            }
+        });
+
+        // Summarize Button Click
+        document.getElementById("summarizeBtn").addEventListener("click", async () => {
+            spinner.style.display = "block";
+            try {
+                const response = await fetch("/summarize", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+
+                const data = await response.json();
+                document.getElementById("pdf_summary").innerText = data.summary || "No summary available.";
+            } catch (error) {
+                console.error("Error during summarization:", error);
+                alert("An error occurred while summarizing the PDF.");
+            } finally {
+                spinner.style.display = "none";
+            }
         });
 
         // Search Form Submission
         document.getElementById("searchForm").addEventListener("submit", async (e) => {
             e.preventDefault();
-            spinner.style.display = "block"; // Show spinner
+            spinner.style.display = "block";
             const query = document.getElementById("query").value;
-            const language = document.querySelector('input[name="language"]:checked').value;
-            
-            const response = await fetch("/search", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ query, language })
-            });
-            
-            const data = await response.json();
-            document.getElementById("pdf_summary").innerText = data.summary;
-            
-            if (data.search_result === "Query found in PDF text.") {
-                const pagesWithLines = data.pages_with_lines ? data.pages_with_lines : "None";
-                document.getElementById("extracted_info").innerText = 
-                    `Found ${data.occurrences} time(s) in pages: ${pagesWithLines}`;
-            } else {
-                document.getElementById("extracted_info").innerText = data.search_result;
+
+            try {
+                const response = await fetch("/search", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ query })  // Language is no longer included
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error(data.error);  // Log any error
+                    document.getElementById("extracted_info").innerText = data.error;  // Display the error
+                } else {
+                    if (data.matched_text_info.length > 0) {
+                        // Process matched text info
+                        let matches = data.matched_text_info.map(info => `Chunk: ${info.chunk_index}, Score: ${info.similarity_score.toFixed(4)}, Text: ${info.text}`).join('\n\n');
+                        document.getElementById("extracted_info").innerText = `Matches:\n${matches}`;
+                    } else {
+                        document.getElementById("extracted_info").innerText = "No matches found.";
+                    }
+                }
+            } catch (error) {
+                console.error("Error during search:", error);
+                alert("An error occurred while searching the PDF.");
+            } finally {
+                spinner.style.display = "none";
             }
-            spinner.style.display = "none"; // Hide spinner when complete
         });
-    </script>
+    </script>    
 
 </body>
 </html>

@@ -6,7 +6,6 @@ const multer = require("multer");
 const app = express();
 app.use(express.json());
 
-// Configure multer for file uploads
 const upload = multer({ 
     storage: multer.diskStorage({
         destination: (req, file, cb) => {
@@ -25,15 +24,12 @@ const upload = multer({
     }
 });
 
-// Serve static files (make sure 'public' directory exists with 'client.html' file)
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Default route for the main page
 app.get("/", (req, res) => {
-    res.sendFile(path.join(__dirname, 'public', 'client.html')); // Ensure the file path is correct
+    res.sendFile(path.join(__dirname, 'public', 'client.html'));
 });
 
-// Other routes for upload and search
 app.post("/upload", upload.single("pdf_file"), (req, res) => {
     if (!req.file) {
         return res.status(400).send("No file uploaded.");
@@ -43,26 +39,38 @@ app.post("/upload", upload.single("pdf_file"), (req, res) => {
 });
 
 app.post("/search", async (req, res) => {
-    const { query, language } = req.body;  // Extract both query and language
-    console.log(`Received query from client: ${query} in language: ${language}`);  // Debug: log the query and language
+    const { query } = req.body;
+    console.log(`Received query from client: ${query}`);
 
     try {
-        // Forward the query and language to the Flask backend
-        const response = await axios.post("http://localhost:5000/search", { query, language });  // Send language too
-        console.log("Response from Flask backend:", response.data);  // Debug: log the response
-        res.json(response.data);  // Send the response back to the client
+        const response = await axios.post("http://127.0.0.1:5000/search", { query });
+        console.log("Response from Flask backend:", response.data);
+
+        // Send the data back to the client
+        res.json(response.data);
     } catch (error) {
-        console.error("Error communicating with the Flask backend:", error.message);  // Log the error message
-
-        // Log detailed error response if it exists
+        console.error("Error communicating with the Flask backend:", error.message);
         if (error.response) {
-            console.error("Flask response data:", error.response.data);  // Log response data for debugging
+            console.error("Flask response data:", error.response.data);
         }
-
         res.status(500).json({ error: "Error communicating with the Flask backend." });
     }
 });
 
+
+app.post("/summarize", async (req, res) => {
+    console.log("Received request to summarize the latest file.");
+    try {
+        const response = await axios.post("http://127.0.0.1:5000/summarize");
+        res.json(response.data);
+    } catch (error) {
+        console.error("Error communicating with the Flask backend:", error.message);
+        if (error.response) {
+            console.error("Flask response data:", error.response.data);
+        }
+        res.status(500).json({ error: "Error communicating with the Flask backend." });
+    }
+});
 
 app.listen(3001, () => {
     console.log("Server running on http://localhost:3001");

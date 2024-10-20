@@ -1,16 +1,26 @@
 from flask import Flask, request, jsonify
 import fitz  # PyMuPDF
 import os
+from transformers import PegasusForConditionalGeneration, PegasusTokenizer, pipeline
+from sentence_transformers import SentenceTransformer, util
+from flask_cors import CORS
+from langdetect import detect  
 import re
-from transformers import pipeline
 
 app = Flask(__name__)
+CORS(app)
 
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-# Initialize the summarization model
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+# Load Pegasus model for summarization
+model_name = "google/pegasus-large"
+model = PegasusForConditionalGeneration.from_pretrained(model_name)
+tokenizer = PegasusTokenizer.from_pretrained(model_name, use_fast=True)
+summarizer = pipeline("text2text-generation", model=model, tokenizer=tokenizer)
+
+# Load Sentence Transformer for embeddings
+embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -41,122 +51,140 @@ def convert_pdf_to_text(pdf_path):
     text = ""
     try:
         doc = fitz.open(pdf_path)
-        for page in doc:
-            text += page.get_text()
+        for i in range(len(doc)):
+            page = doc[i]
+            page_text = page.get_text()
+            if page_text:
+                text += page_text
+            else:
+                print(f"Warning: Page {i + 1} contains no text.")
     except Exception as e:
         print(f"Error reading the PDF file: {e}")
         raise
     return text
 
-def searchInPDF_english(pdf_path, key):
-    occurrences = 0
-    pages_with_lines = {}
+def quick_filter_chunks(text_chunks, query):
+    filtered_chunks = []
+    for idx, chunk in enumerate(text_chunks):
+        if re.search(re.escape(query), chunk, re.IGNORECASE):
+            filtered_chunks.append((idx, chunk))
+    return filtered_chunks
 
-    doc = fitz.open(pdf_path)
-    for pno in range(len(doc)):
-        page = doc[pno]
-        content = page.get_text("text")
-        lines = content.splitlines()
-        
-        for line_number, line in enumerate(lines):
-            if key.lower() in line.lower():
-                occurrences += line.lower().count(key.lower())
-                
-                if pno + 1 not in pages_with_lines:
-                    pages_with_lines[pno + 1] = []
-                pages_with_lines[pno + 1].append(line_number + 1)
-
-    return occurrences, pages_with_lines
-
-def searchInPDF_french(pdf_path, key):
-    occurrences = 0
-    pages_with_lines = {}
-    phrase_pattern = re.compile(re.escape(key), re.IGNORECASE)
-
-    # Open the PDF file using PyMuPDF
-    doc = fitz.open(pdf_path)
-
-    for pno in range(len(doc)):
-        page = doc[pno]
-        content = page.get_text("text")
-        
-        # Split the content into lines
-        lines = content.splitlines()
-        
-        # Combine lines into a single page content
-        page_content = ' '.join(lines)
-        
-        # Find all matches for the key in the full page content
-        matches = list(phrase_pattern.finditer(page_content))
-        
-        for match in matches:
-            occurrences += 1  # Count each match occurrence
-            
-            # Determine the exact line where this match starts
-            match_start = match.start()
-            char_count = 0
-            for line_num, line in enumerate(lines, start=1):
-                char_count += len(line) + 1  # Include the newline character
-                if char_count >= match_start:
-                    # Store this line in pages_with_lines if it's not already there
-                    if pno + 1 not in pages_with_lines:
-                        pages_with_lines[pno + 1] = []
-                    if line_num not in pages_with_lines[pno + 1]:
-                        pages_with_lines[pno + 1].append(line_num)
-                    break
-
-    return occurrences, pages_with_lines
-
-
-@app.route("/search", methods=["POST"])
+@app.route('/search', methods=['POST'])
 def search():
+    data = request.json
+    query = data.get('query', '')
+
+    if not query:
+        return jsonify({"error": "Query is required"}), 400
+
     try:
         pdf_path = get_latest_pdf()
-        print(f"Using PDF file for search: {pdf_path}")
-        
-        data = request.json
-        query = data.get("query")
-        language = data.get("language", "english").lower()
-        print(f"Received query: {query} in language: {language}")
+        text = convert_pdf_to_text(pdf_path)
+        sentences = text.split('. ')  # Split text into sentences
 
-        pdf_text = convert_pdf_to_text(pdf_path)
-        print("PDF text successfully extracted.")
+        # Detect the language of the extracted text
+        language = detect(text)  
+        print(f"Detected Language: {language}")
 
-        # Choose the appropriate search function based on language
-        if language == "french":
-            occurrences, pages_with_lines = searchInPDF_french(pdf_path, query)
-        else:
-            occurrences, pages_with_lines = searchInPDF_english(pdf_path, query)
-        
-        formatted_pages_with_lines = ", ".join([f"{page} (lines {', '.join(map(str, lines))})" 
-                                               for page, lines in pages_with_lines.items()])
+        # Encode sentences and the query
+        sentence_embeddings = embedding_model.encode(sentences, convert_to_tensor=True)
+        query_embedding = embedding_model.encode(query, convert_to_tensor=True)
 
-        response_data = {
-            "summary": summarize_text(pdf_text),  # Add summary to the response
-            "occurrences": occurrences,
-            "pages_with_lines": formatted_pages_with_lines,
-            "search_result": "Query found in PDF text." if occurrences > 0 else "Query not found in PDF text."
-        }
+        # Compute cosine similarities
+        similarities = util.pytorch_cos_sim(query_embedding, sentence_embeddings)[0]
+        matched_indices = similarities.argsort(descending=True)[:5]  
 
-        return jsonify(response_data)
+        matched_text_info = []
+        line_numbers = []
+        total_pages = len(fitz.open(pdf_path))
 
-    except FileNotFoundError as fnf_error:
-        print(f"Error: {fnf_error}")
-        return jsonify({"error": str(fnf_error)}), 400
+        for index in matched_indices:
+            matched_text_info.append({
+                "chunk_index": index.item(),
+                "similarity_score": similarities[index].item(),
+                "text": sentences[index].strip()
+            })
+
+            # Find the page and line number for each matched sentence
+            page_num = -1
+            line_num = -1
+            for page_index in range(total_pages):
+                page = fitz.open(pdf_path)[page_index]
+                page_text = page.get_text()
+                
+                # Normalize line breaks and strip whitespace
+                page_lines = [line.strip() for line in page_text.splitlines() if line.strip()]
+                
+                # Find matching sentence in the page text
+                if matched_text_info[-1]["text"] in page_text:
+                    page_num = page_index + 1  # Page numbers start from 1
+                    
+                    # Try to find the line number
+                    for line_index, line in enumerate(page_lines):
+                        if matched_text_info[-1]["text"] == line:
+                            line_num = line_index + 1  # Line numbers start from 1
+                            break
+                    break
+
+            line_numbers.append({
+                "chunk_index": matched_text_info[-1]["chunk_index"],
+                "page": page_num,
+                "line": line_num
+            })
+
+        # Combine matched text info with line numbers
+        for match in matched_text_info:
+            match["line_info"] = next((line for line in line_numbers if line["chunk_index"] == match["chunk_index"]), None)
+
+        return jsonify({
+            "matched_text_info": matched_text_info,
+            "total_matches": len(matched_text_info), 
+            "total_pages": total_pages  
+        })
+
     except Exception as e:
-        print(f"Error occurred: {e}")
         return jsonify({"error": str(e)}), 500
 
-# Function to summarize the extracted PDF text
-def summarize_text(text):
-    # Handle cases where text might be too long for summarization
-    max_length = 1024  # Maximum tokens for the model
-    if len(text) > max_length:
-        text = text[:max_length]  # Truncate to fit model input
 
-    summary = summarizer(text, max_length=150, min_length=30, do_sample=False)
-    return summary[0]['summary_text']  # Return the summary text
+
+@app.route('/summarize', methods=['POST'])
+def summarize():
+    try:
+        pdf_path = get_latest_pdf()
+        pdf_text = convert_pdf_to_text(pdf_path)
+        summary = summarize_text(pdf_text)
+        return jsonify({"summary": summary})
+    except FileNotFoundError as fnf_error:
+        return jsonify({"error": str(fnf_error)}), 400
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def summarize_text(text):
+    max_token_length = 512  # Token length for splitting large text
+    chunks = [text[i:i + max_token_length] for i in range(0, len(text), max_token_length)]
+    
+    summaries = []
+    for chunk in chunks:
+        try:
+            summary = summarizer(chunk, max_length=150, min_length=30, do_sample=True)
+            generated_text = summary[0]['generated_text']
+            sentences = generated_text.split('.')
+
+            # Remove duplicate or redundant sentences
+            unique_sentences = []
+            for sentence in sentences:
+                sentence = sentence.strip()
+                if sentence and sentence not in unique_sentences:
+                    unique_sentences.append(sentence)
+
+            summaries.append(". ".join(unique_sentences))
+        except Exception as e:
+            print(f"Error during summarization: {e}")
+            raise e
+
+    return " ".join(summaries)
 
 if __name__ == "__main__":
+    print("Starting the Flask application...")
     app.run(port=5000)
-
